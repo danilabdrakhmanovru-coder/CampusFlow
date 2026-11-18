@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: campusflow
+      POSTGRES_DB: campusflow
+      POSTGRES_PASSWORD: ${CAMPUSFLOW_DB_PASSWORD:?Set CAMPUSFLOW_DB_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusflow -d campusflow"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  api:
+    build: ./backend
+    environment:
+      CAMPUSFLOW_DB_PASSWORD: ${CAMPUSFLOW_DB_PASSWORD:?Set CAMPUSFLOW_DB_PASSWORD}
+      CAMPUSFLOW_DATABASE_URL: postgresql+psycopg://campusflow:${CAMPUSFLOW_DB_PASSWORD:?Set CAMPUSFLOW_DB_PASSWORD}@db/campusflow
+      CAMPUSFLOW_JWT_SECRET: ${CAMPUSFLOW_JWT_SECRET:?Set CAMPUSFLOW_JWT_SECRET}
+      CAMPUSFLOW_SCHEDULE_SECRET: ${CAMPUSFLOW_SCHEDULE_SECRET:?Set CAMPUSFLOW_SCHEDULE_SECRET}
+      CAMPUSFLOW_LOCAL_HTTP: "0"
+      CAMPUSFLOW_DEMO: "0"
+      OMP_NUM_THREADS: "2"
+      CAMPUSFLOW_BELL: ${CAMPUSFLOW_BELL:-}
+      CAMPUSFLOW_TIMEZONE: ${CAMPUSFLOW_TIMEZONE:-Asia/Yekaterinburg}
+      CAMPUSFLOW_INSTITUTE: ${CAMPUSFLOW_INSTITUTE:-Учебный кампус}
+      CAMPUSFLOW_BOOKING_MODE: ${CAMPUSFLOW_BOOKING_MODE:-standalone}
+      CAMPUSFLOW_SITE_NAME: ${CAMPUSFLOW_SITE_NAME:-CampusFlow}
+      CAMPUSFLOW_SITE_DESCRIPTION: ${CAMPUSFLOW_SITE_DESCRIPTION:-Бронирование аудиторий}
+      CAMPUSFLOW_SITE_CAMPUS: ${CAMPUSFLOW_SITE_CAMPUS:-Учебный кампус}
+      CAMPUSFLOW_PRIVACY_VERSION: ${CAMPUSFLOW_PRIVACY_VERSION:-}
+      CAMPUSFLOW_PRIVACY_OPERATOR: ${CAMPUSFLOW_PRIVACY_OPERATOR:-}
+      CAMPUSFLOW_PRIVACY_RESPONSIBLE: ${CAMPUSFLOW_PRIVACY_RESPONSIBLE:-}
+      CAMPUSFLOW_PRIVACY_CONTACT: ${CAMPUSFLOW_PRIVACY_CONTACT:-}
+      CAMPUSFLOW_PRIVACY_EFFECTIVE_DATE: ${CAMPUSFLOW_PRIVACY_EFFECTIVE_DATE:-}
+      CAMPUSFLOW_BOOKING_RETENTION_DAYS: ${CAMPUSFLOW_BOOKING_RETENTION_DAYS:-365}
+      CAMPUSFLOW_AUDIT_RETENTION_DAYS: ${CAMPUSFLOW_AUDIT_RETENTION_DAYS:-365}
+      CAMPUSFLOW_EXPIRED_SESSION_RETENTION_DAYS: ${CAMPUSFLOW_EXPIRED_SESSION_RETENTION_DAYS:-1}
+      CAMPUSFLOW_SUPPORT_EMAIL: ${CAMPUSFLOW_SUPPORT_EMAIL:-}
+      CAMPUSFLOW_SUPPORT_HOURS: ${CAMPUSFLOW_SUPPORT_HOURS:-}
+      CAMPUSFLOW_SCHEDULE_SOURCE: ${CAMPUSFLOW_SCHEDULE_SOURCE:-Опубликованные выгрузки}
+      CAMPUSFLOW_OLLAMA_URL: ${CAMPUSFLOW_OLLAMA_URL:-}
+      CAMPUSFLOW_OLLAMA_MODEL: ${CAMPUSFLOW_OLLAMA_MODEL:-qwen2.5:7b}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/v1/privacy/policy', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    restart: unless-stopped
+  retention:
+    build: ./backend
+    command: ["python", "-m", "app.v1.retention_job"]
+    environment:
+      CAMPUSFLOW_BOOKING_MODE: ${CAMPUSFLOW_BOOKING_MODE:-standalone}
+      CAMPUSFLOW_DATABASE_URL: postgresql+psycopg://campusflow:${CAMPUSFLOW_DB_PASSWORD:?Set CAMPUSFLOW_DB_PASSWORD}@db/campusflow
+      CAMPUSFLOW_BOOKING_RETENTION_DAYS: ${CAMPUSFLOW_BOOKING_RETENTION_DAYS:-365}
+      CAMPUSFLOW_AUDIT_RETENTION_DAYS: ${CAMPUSFLOW_AUDIT_RETENTION_DAYS:-365}
+      CAMPUSFLOW_EXPIRED_SESSION_RETENTION_DAYS: ${CAMPUSFLOW_EXPIRED_SESSION_RETENTION_DAYS:-1}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    build: ./frontend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    ports:
+      - "127.0.0.1:${CAMPUSFLOW_PORT:-8767}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres:
+

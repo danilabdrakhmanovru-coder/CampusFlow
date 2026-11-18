@@ -1,0 +1,56 @@
+name: Checks
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: campusflow
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: campusflow
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U campusflow -d campusflow"
+          --health-interval 5s --health-timeout 5s --health-retries 15
+    env:
+      CAMPUSFLOW_DATABASE_URL: postgresql+psycopg://campusflow:ci-only@127.0.0.1:5432/campusflow
+      CAMPUSFLOW_TEST_DATABASE_URL: postgresql+psycopg://campusflow:ci-only@127.0.0.1:5432/campusflow
+      OMP_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - working-directory: backend
+        run: |
+          python -m pip install -r requirements.txt pytest httpx ruff mypy
+          ruff check --select E9,F63,F7,F82 app tests migrations
+          mypy --follow-imports=silent --ignore-missing-imports app/v1/db.py app/v1/privacy.py
+          python -m alembic upgrade head
+          python -m pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - working-directory: frontend
+        run: npm ci && npm run build
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: docker compose -f compose.demo.yaml up --build -d --wait --wait-timeout 240
+      - working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - if: always()
+        run: docker compose -f compose.demo.yaml down
