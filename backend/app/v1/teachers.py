@@ -28,5 +28,8 @@ def directory(db):
     return {(r.building, r.teacher_key): r.number for r in db.scalars(select(TeacherNumber))}
 
 
-def teacher_view(building, number):
+def teacher_view(building, number, key=None):
+    from .demo_examples import is_demo, TEACHER_NAMES
+    if is_demo() and key in TEACHER_NAMES:
+        return {"building":building,"number":number,"label":TEACHER_NAMES[key]}
     return {"building": building, "number": number, "label": f"Преподаватель №{number}"}

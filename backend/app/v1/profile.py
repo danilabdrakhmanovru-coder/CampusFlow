@@ -44,8 +44,9 @@ def profile_data(db, user):
         prefs["notifications"] = {}
     else:
         prefs["notifications"] = NOTICE_DEFAULTS | prefs["notifications"]
-    return {"id": user.id, "role": user.role, "login": identity, "institute": environ.get("CAMPUSFLOW_INSTITUTE", "ИИМРТ"),
-            "teacher": teacher_view(teacher.building, teacher.number) if teacher else None,
+    from .demo_examples import is_demo, PEOPLE
+    return {"display_name":PEOPLE.get(identity) if is_demo() else None,"id": user.id, "role": user.role, "login": identity, "institute": environ.get("CAMPUSFLOW_INSTITUTE", "ИИМРТ"),
+            "teacher": teacher_view(teacher.building, teacher.number, teacher.teacher_key) if teacher else None,
             "teacher_link_requested_at": user.teacher_link_requested_at if user.role == "teacher" and not link else None,
             "deletion_requested_at": user.deletion_requested_at, "preferences": prefs}
 

@@ -135,7 +135,7 @@ def windows_for_group(group:str,start:date,end:date,minimum:int=Query(40,ge=1,le
     return {"summary":summary,"windows":windows,"lessons":[] if summary["status"]=="small" else [
         {"id":r.id,"start":r.period.lower,"end":r.period.upper,"subject":display_subject(r.subject),"building":r.building,
          "room":r.room_code,"pinned":pin_key(r) in pins,
-         "teachers":[teacher_view(b,numbers[b,key]) for key in r.teachers
+         "teachers":[teacher_view(b,numbers[b,key],key) for key in r.teachers
                      if (b:=building_key(r.building),key) in numbers]}
         for r in selected]}
 

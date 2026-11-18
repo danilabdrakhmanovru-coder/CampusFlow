@@ -176,7 +176,7 @@ function Rooms(){
   {confirmation.dialog}</section>
 }
 
-type User = {id:number;login:string;role:Role;active:boolean;teacher_link_requested_at:string|null;deletion_requested_at:string|null;teaching_days_off:number[]}
+type User = {id:number;login:string;display_name?:string|null;role:Role;active:boolean;teacher_link_requested_at:string|null;deletion_requested_at:string|null;teaching_days_off:number[]}
 function Users({ownId}:{ownId:number}){
   const confirmation=useConfirmation()
   const [revision,refresh]=useState(0)
@@ -212,7 +212,7 @@ function Users({ownId}:{ownId:number}){
     {reset&&<div className="panel"><label>Одноразовая ссылка на 30 минут<input readOnly value={reset} onFocus={event=>event.currentTarget.select()}/></label>
       <button className="secondary" onClick={()=>setReset('')}>Скрыть ссылку</button></div>}
     <ul className="records">{list.data?.map(user=><li key={user.id}>
-      <strong>{user.login}</strong>{user.teacher_link_requested_at&&<span className="tag">Запрошена привязка</span>}
+      <strong>{user.display_name??user.login}</strong>{user.display_name&&<span>Логин: {user.login}</span>}{user.teacher_link_requested_at&&<span className="tag">Запрошена привязка</span>}
       {user.role==='teacher'&&<p>Дни без занятий: {user.teaching_days_off?.length?user.teaching_days_off.map(day=>['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][day]).join(', '):'не указаны'}</p>}
       {user.deletion_requested_at&&<span className="tag">Запрошено удаление данных</span>}
       {user.active&&<button className="secondary" onClick={()=>confirmation.ask({title:'Создать ссылку для сброса?',description:'Передайте одноразовую ссылку владельцу аккаунта.',label:'Создать ссылку',apply:()=>void userAction(async()=>{

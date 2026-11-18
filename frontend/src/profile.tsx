@@ -8,7 +8,7 @@ import { useConfirmation } from './Sheet'
 const tabs = [['identity','Профиль'],['security','Безопасность'],['notifications','Уведомления'],['privacy','Данные и конфиденциальность'],['interface','Интерфейс']] as const
 const noticeLabels = {watch_hold:'Освободилась аудитория из ожидания',cancelled_by_admin:'Диспетчер отменил бронь',booking_reminder:'Скоро начнётся бронь',slot_freed:'Бронь освобождена'}
 export type Preferences = {group:string|null;building:string|null;theme:string;density:string;notifications:Record<string,boolean>;teaching_days_off:number[]}
-export type Profile = {login:string;institute:string;role:Session['role'];preferences:Preferences;teacher:Teacher|null;teacher_link_requested_at:string|null;deletion_requested_at:string|null}
+export type Profile = {display_name?:string|null;login:string;institute:string;role:Session['role'];preferences:Preferences;teacher:Teacher|null;teacher_link_requested_at:string|null;deletion_requested_at:string|null}
 export type Group = {code:string;size:number|null}
 const format=(value:string)=>new Intl.DateTimeFormat('ru-RU',{dateStyle:'medium',timeStyle:'short',timeZone:campus}).format(new Date(value))
 
@@ -80,7 +80,7 @@ export function ProfilePage({user,policy,setTheme,setDensity,password,pending,le
     <nav className="actions room-views" aria-label="Настройки аккаунта">{tabs.filter(([key])=>key!=='notifications'||user.role!=='student').map(([key,label])=>
       <Link className="secondary" key={key} href={'/profile?tab='+key} current={tab===key}>{label}</Link>)}</nav>
     <Status error={error||profile.error} pending={!record&&!profile.error}/>{note&&<p className="feedback" role="status">{note}</p>}
-    {record&&prefs&&tab==='identity'&&<section className="panel"><div className="profile-identity"><span className="avatar" aria-hidden="true">{(record.login??roles[user.role]).slice(0,2).toUpperCase()}</span><div><strong>{record.login??'Аккаунт'}</strong><p>{roles[record.role]} — {record.institute}</p></div></div>
+    {record&&prefs&&tab==='identity'&&<section className="panel"><div className="profile-identity"><span className="avatar" aria-hidden="true">{(record.display_name??record.login??roles[user.role]).slice(0,2).toUpperCase()}</span><div><strong>{record.display_name??record.login??'Аккаунт'}</strong><p>{roles[record.role]} — {record.institute}</p></div></div>
       {user.role==='teacher'&&(record.teacher?<p>{record.teacher.label} привязан к расписанию.</p>:record.teacher_link_requested_at?<p>Запрос ожидает подтверждения диспетчера.</p>:
         <button className="secondary" disabled={busy} onClick={()=>void run(()=>api('/me/teacher-link-request',{method:'POST'}),'Запрос передан диспетчеру.')}>Запросить привязку</button>)}
       <form className="toolbar" key={revision} onSubmit={save}>

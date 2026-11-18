@@ -689,9 +689,11 @@ def test_demo_login_is_disabled_outside_demonstration(pilot, monkeypatch):
     monkeypatch.setenv("CAMPUSFLOW_DEMO","1")
     monkeypatch.setenv("CAMPUSFLOW_LOCAL_HTTP","0")
     assert client.post("/api/v1/auth/demo",params={"role":"admin"}).status_code==404
+    assert client.get("/api/v1/auth/demo/accounts").status_code==404
     monkeypatch.setenv("CAMPUSFLOW_DEMO","0")
     monkeypatch.setenv("CAMPUSFLOW_LOCAL_HTTP","1")
     assert client.post("/api/v1/auth/demo",params={"role":"admin"}).status_code==404
+    assert client.get("/api/v1/auth/demo/accounts").status_code==404
 
 def test_schedule_downloads_pdf_and_editable_word(pilot):
     from io import BytesIO

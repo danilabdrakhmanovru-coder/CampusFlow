@@ -326,7 +326,7 @@ def schedule(
     numbers = directory(db) if user.role == "admin" or scope == "mine" else {}
     items = [dict(id=r.id, start=r.period.lower, end=r.period.upper, subject=display_subject(r.subject),
                   groups=r.groups, teachers=[
-                      teacher_view(b, numbers[b, key]) for key in r.teachers
+                      teacher_view(b, numbers[b, key], key) for key in r.teachers
                       if (b := building_key(r.building), key) in numbers
                   ], building=r.building, room=r.room_code) for r in rows[:500]]
     return {"items": items, "next_offset": offset + 500 if len(rows) > 500 else None,

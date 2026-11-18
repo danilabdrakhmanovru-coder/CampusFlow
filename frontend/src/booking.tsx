@@ -7,6 +7,7 @@ import { useConfirmation } from './Sheet'
 import { TicketPanel, useLive } from './rooms'
 import { allRooms, bell, campusInstant, clock, dayFmt, Heading, message, options, params, Status, Toast, today, useLoad } from './common'
 
+const equipmentLabels:Record<string,string>={accessible:'Доступная среда',pc:'Компьютеры',board:'Доска',projector:'Проектор',microphone:'Микрофон',screen:'Экран'}
 type Hold = { id:number; expires_at:string; start?:string; end?:string }
 type RoomAlternative = {
   room_id:number; room:string; building:string; capacity:number|null
@@ -41,7 +42,7 @@ export function BookingPage({user,initial,initialTab="new"}:{user:Session;initia
   const incomingStart=url.get('start')??''
   const incomingEnd=url.get('end')??''
   const [day,setDay]=useState(initial ? dayFmt.format(Date.parse(initial.start)) : /^\d{4}-\d{2}-\d{2}$/.test(incomingDay)&&Number.isFinite(Date.parse(incomingDay))?incomingDay:today())
-  const [kind,setKind]=useState('seminar')
+  const [kind,setKind]=useState('any')
   const [equipment,setEquipment]=useState<string[]>([])
   const [pair,setPair]=useState('')
   const [duration,setDuration]=useState(()=>Math.max(15,Math.min(480,(Date.parse(incomingEnd)-Date.parse(incomingStart))/60000||90)))
@@ -81,6 +82,9 @@ export function BookingPage({user,initial,initialTab="new"}:{user:Session;initia
   const exactMinute=selected?selected[0]:customTime?hours*60+minutes:undefined
   const buildings=[...new Set(rooms.data?.map(room=>room.building))].sort()
   const selectedBuilding=building??profile.data?.preferences.building??''
+  const equipmentOptions=[...new Set(['projector','pc','accessible',...(rooms.data??[]).flatMap(room=>Object.keys(room.equipment))])]
+  const fitCount=rooms.data?.filter(room=>(!selectedBuilding||room.building===selectedBuilding)&&(kind==='any'||room.kind===kind)
+    &&room.capacity!==null&&room.capacity>=count&&equipment.every(key=>key==='accessible'?room.accessible:room.equipment[key])).length
   const groupValid=!group||groups.data?.some(item=>item.code===group)
   const criteria:Record<string,string>={day,kind,count:String(count),equipment:equipment.join(','),duration:String(duration)}
   if(exactMinute!==undefined)criteria.start_minute=String(exactMinute)
@@ -206,15 +210,18 @@ export function BookingPage({user,initial,initialTab="new"}:{user:Session;initia
         <label>Корпус<select value={selectedBuilding} onChange={event=>setBuilding(event.target.value)}>
           <option value="">Все корпуса</option>{buildings.map(key=><option key={key} value={key}>Корпус {key}</option>)}
         </select></label>
-        <fieldset><legend>Тип аудитории</legend><div className="room-kinds">{options.map(item=>
+        <label>Человек<input type="number" min="1" max="10000" required value={count} onChange={event=>setCount(Number(event.target.value))}/></label>
+        <fieldset><legend>Тип аудитории</legend><div className="room-kinds">{[{value:"any",label:"Любой тип"},...options].map(item=>
           <label key={item.value}><input type="radio" name="kind" value={item.value} checked={kind===item.value} onChange={()=>setKind(item.value)}/>
             <Icon name={item.value==='computer'?'pc':item.value==='laboratory'?'laboratory':'room'}/>{item.label}</label>)}</div></fieldset>
-        <details className="secondary-options"><summary>Оборудование и доступность{equipment.length>0&&' ('+equipment.length+')'}</summary><div className="actions equipment-chips">{[...new Set(['accessible',...(rooms.data??[]).flatMap(room=>Object.keys(room.equipment))])].map(item=>{
-          const label:Record<string,string>={accessible:'Доступная среда',pc:'Компьютеры',board:'Доска',projector:'Проектор',microphone:'Микрофон',screen:'Экран'}
-          const number=rooms.data?.filter(room=>(!selectedBuilding||room.building===selectedBuilding)&&room.kind===kind&&(item==='accessible'?room.accessible:room.equipment[item])).length??0
-          return <button type="button" className="secondary" key={item} aria-pressed={equipment.includes(item)} onClick={()=>{clearResults();setEquipment(value=>value.includes(item)?value.filter(k=>k!==item):[...value,item])}}>
-            <Icon name={item==='accessible'?'access':item==='pc'?'pc':item==='board'?'board':item==='projector'?'projector':'room'}/>{label[item]??item} ({number})</button>
-        })}</div></details>
+        <fieldset><legend>Оборудование и доступность</legend><div className="actions equipment-chips">{equipmentOptions.map(item=>
+          <button type="button" className="secondary" key={item} aria-pressed={equipment.includes(item)} onClick={()=>{
+            clearResults();setEquipment(value=>value.includes(item)?value.filter(k=>k!==item):[...value,item])
+          }}><Icon name={item==='accessible'?'access':item==='pc'?'pc':item==='projector'?'projector':item==='board'?'board':'room'}/>
+            {equipmentLabels[item]??item}</button>)}</div></fieldset>
+        {rooms.data&&count>0&&<p className="room-fit" role="status">{fitCount?
+          'По характеристикам подходит: '+fitCount+'. Свободное время проверим при подборе.':
+          'В каталоге нет точного совпадения. При подборе покажем ближайшие варианты и отличия.'}</p>}
         <details className="secondary-options">
           <summary>Учесть расписание группы{group&&' — '+group}</summary>
           <label>Группа<input list="booking-groups" value={group} placeholder="Введите код группы"
@@ -227,7 +234,7 @@ export function BookingPage({user,initial,initialTab="new"}:{user:Session;initia
           <datalist id="booking-groups">{groups.data?.map(item=><option key={item.code} value={item.code}/>)}</datalist>
           <p className="muted" id="booking-group-help">Укажите группу, чтобы учесть её пары и подставить число участников. Для обычного поиска достаточно указать количество человек.</p>
         </details>
-        <label>Человек<input type="number" min="1" max="10000" required value={count} onChange={event=>setCount(Number(event.target.value))}/></label>
+
         <label>Дата<input type="date" required value={day} onChange={event=>setDay(event.target.value)}/></label>
         <label>Время по звонкам<select value={pair} onChange={event=>{
           setPair(event.target.value);const selected=bell[Number(event.target.value)-1]

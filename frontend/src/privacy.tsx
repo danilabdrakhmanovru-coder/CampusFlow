@@ -1,3 +1,4 @@
+import {DemoRoles} from './DemoRoles'
 import { FormEvent, useState } from 'react'
 import { api, json, type Role } from './api'
 import { BrandMark } from './BrandMark'
@@ -60,18 +61,7 @@ export function LoginForm({description,support,pending,error,retry,submit,demoSi
   return <section className={"login"+(demoSignIn?" demo-login":"")}>
     <div className="login-mark"><BrandMark/></div>
     <Heading title="Вход в CampusFlow" description={description}/>
-    {demoSignIn&&<section aria-label="Демонстрационный вход">
-      <h2>Попробовать CampusFlow</h2>
-      <div className="demo-role-grid">
-        {([
-          ['student','Найти свободную аудиторию','Студент'],
-          ['teacher','Забронировать аудиторию','Преподаватель'],
-          ['dean','Улучшить расписание','Сотрудник деканата'],
-          ['admin','Управлять кампусом','Администратор'],
-        ] as const).map(([role,action,label])=><button className="secondary demo-role" key={role} disabled={pending}
-          type="button" onClick={()=>demoSignIn(role)}><small>{label}</small><strong>{action}</strong></button>)}
-      </div>
-    </section>}
+    {demoSignIn&&<DemoRoles pending={pending} select={demoSignIn}/>}
     <details className={demoSignIn?'manual-login':'ordinary-login'} open={demoSignIn?undefined:true}>
       <summary>Войти с логином и паролем</summary>
     <form className="panel" onSubmit={submit}>

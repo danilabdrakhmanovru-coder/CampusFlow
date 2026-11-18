@@ -84,7 +84,7 @@ MISSING_EQUIPMENT = {
 
 def room_requirements(room, kind, count, equipment):
     reasons = []
-    if room.kind != kind:
+    if kind != "any" and room.kind != kind:
         reason = f"Другой тип: {ROOM_KIND_LABELS.get(room.kind, 'не указан')}"
         reasons.append(reason if room.kind else "Тип аудитории не указан")
     if room.capacity is None:
@@ -215,7 +215,7 @@ def recommend(day: date, kind: str, count: int | None = Query(default=None, ge=1
             walk = walking_minutes(room.id, routes, previous, following, start, end)
             if walk is None:
                 continue
-            reasons = [f"Аудитория подходит по типу. Мест: {room.capacity}, нужно: {count}."]
+            reasons = [f"{ROOM_KIND_LABELS.get(room.kind, 'Аудитория').capitalize()}. Мест: {room.capacity}, нужно: {count}."]
             if gap:
                 reasons.append(f"Интервал попадает в перерыв группы между парами ({gap} мин).")
             if walk:
@@ -353,7 +353,7 @@ def entities(db=Depends(db_session), user=Depends(current_user)):
     if user.role == "admin":
         numbers = directory(db)
         result["teachers"] = [
-            teacher_view(b, n) for b, n in sorted((b, numbers[b, key]) for b, key in teacher_keys if (b, key) in numbers)
+            teacher_view(b, n, key) for b, n, key in sorted((b, numbers[b, key], key) for b, key in teacher_keys if (b, key) in numbers)
         ]
     return result
 

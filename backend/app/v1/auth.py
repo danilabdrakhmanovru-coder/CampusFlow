@@ -180,6 +180,16 @@ def login(data: Login, request: Request, response: Response, db=Depends(db_sessi
     return issue(db, user, response, needs_consent=active_consent(db, user.id) is None)
 
 
+@router.get("/demo/accounts")
+def demo_accounts(response: Response):
+    from .demo_examples import is_demo, PEOPLE
+    if not is_demo():
+        raise HTTPException(404, "Демонстрационный вход недоступен")
+    from .demo import ACCOUNTS
+    response.headers["Cache-Control"] = "no-store"
+    return [{"role":role,"name":PEOPLE[role],"login":role,"password":password} for role,password in ACCOUNTS]
+
+
 @router.post("/demo")
 def enter_demo(role: Literal["student", "teacher", "dean", "admin"], request: Request, response: Response, db=Depends(db_session)):
     if environ.get("CAMPUSFLOW_DEMO") != "1" or environ.get("CAMPUSFLOW_LOCAL_HTTP") != "1":

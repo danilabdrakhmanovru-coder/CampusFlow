@@ -81,7 +81,9 @@ class UserData(BaseModel):
 def users(offset: int = Query(0, ge=0), q: str = Query("",max_length=100), db=Depends(db_session), _=Depends(admin_user)):
     rows = db.execute(select(User, Identity.subject).join(Identity).where(
         Identity.provider == "local", Identity.subject.contains(q,autoescape=True)).order_by(User.id).offset(offset).limit(100))
+    from .demo_examples import is_demo, PEOPLE
     return [{"id": user.id, "role": user.role, "active": user.active, "login": login,
+             "display_name": PEOPLE.get(login) if is_demo() else None,
              "teaching_days_off": user.preferences.get("teaching_days_off", []) if user.role=="teacher" else [],
              "teacher_link_requested_at": user.teacher_link_requested_at,
              "deletion_requested_at": user.deletion_requested_at} for user, login in rows]

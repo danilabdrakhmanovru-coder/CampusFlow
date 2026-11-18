@@ -33,7 +33,7 @@ DEMO_SUBJECTS = (
 
 
 def demo_subject(room_code,start):
-    index = int(room_code.rsplit("-",1)[1])-1
+    index = int(room_code[-1])-1
     kind, subjects = DEMO_SUBJECTS[index]
     local = start.astimezone(CAMPUS)
     minute = local.hour*60+local.minute
@@ -62,7 +62,7 @@ DEMO_DAYS = ((0,1,3), (1,2), (2,3,4), (0,2,3), (1,2,3), (0,1))
 
 
 def rows_for_day(day, prototype):
-    index = int(prototype["room"].rsplit("-",1)[1])-1
+    index = int(prototype["room"][-1])-1
     midnight = datetime.combine(day,datetime.min.time(),CAMPUS)
     for first in DEMO_DAYS[day.weekday()]:
         a,b = BELL[first + index%3]
@@ -108,6 +108,50 @@ def refresh_demo_layout(db,batch):
             raise
 
 
+def room_number(scope, index):
+    return str((200 if index % 2 else 100) + (10 if scope == "6" else 20) + index)
+
+
+def group_number(scope, index):
+    return ("АСУ", "ИСТ", "РЭ", "МАТ")[index-1] + ("-31" if scope == "6" else "-32")
+
+
+def upgrade_demo_labels(db, scope):
+    old_rooms = {f"DEMO-{i:02}":room_number(scope,i) for i in range(1,5)}
+    old_groups = {f"ДЕМО-{scope}{i}":group_number(scope,i) for i in range(1,5)}
+    rooms = db.scalars(select(Room).where(Room.building==scope, Room.code.in_(old_rooms))).all()
+    if not rooms:
+        return
+    for room in rooms:
+        room.code=old_rooms[room.code]
+    for old,new in old_groups.items():
+        size=db.get(GroupSize,old)
+        if size:
+            target=db.get(GroupSize,new)
+            if target:
+                target.size=size.size
+                db.delete(size)
+            else:
+                size.group_code=new
+    for user in db.scalars(select(User).where(User.preferences["group"].astext.in_(old_groups))):
+        user.preferences={**user.preferences,"group":old_groups[user.preferences["group"]]}
+    for batch in db.scalars(select(ImportBatch).where(ImportBatch.scope==scope)):
+        if not any(row["room"] in old_rooms or any(g in old_groups for g in row["groups"]) for row in batch.rows):
+            continue
+        batch.rows=[{**row,"room":old_rooms.get(row["room"],row["room"]),
+                     "groups":[old_groups.get(g,g) for g in row["groups"]]} for row in batch.rows]
+    pins=set(db.scalars(select(LessonPin.key)))
+    for lesson in db.scalars(select(Lesson).where(Lesson.building==scope)):
+        if lesson.room_code not in old_rooms and not any(g in old_groups for g in lesson.groups):
+            continue
+        previous=pin_key(lesson)
+        lesson.room_code=old_rooms.get(lesson.room_code,lesson.room_code)
+        lesson.groups=[old_groups.get(g,g) for g in lesson.groups]
+        if previous in pins and previous!=pin_key(lesson):
+            db.execute(insert(LessonPin).values(key=pin_key(lesson)).on_conflict_do_nothing())
+    db.flush()
+
+
 def seed():
     if environ.get("CAMPUSFLOW_DEMO") != "1":
         return
@@ -118,7 +162,7 @@ def seed():
         with sessions() as db:
             db.execute(text("SELECT pg_advisory_xact_lock(61206701)"))
             db.execute(insert(GroupSize).on_conflict_do_nothing(),[
-                {"group_code":f"ДЕМО-{scope}{index}", "size":12+3*index} for index in range(1,5)
+                {"group_code":group_number(scope,index), "size":12+3*index} for index in range(1,5)
             ])
             existing = db.scalars(select(ImportBatch).where(ImportBatch.source_name=="synthetic-demo",ImportBatch.scope==scope)).all()
             if existing:
@@ -127,6 +171,7 @@ def seed():
                     refresh_demo_labels(db,active)
                     if not any(batch.report.get("demo_layout")==2 for batch in existing):
                         refresh_demo_layout(db,active)
+                upgrade_demo_labels(db,scope)
                 db.commit()
                 continue
             if db.scalar(select(ImportBatch.id).where(ImportBatch.scope == scope)) is not None:
@@ -142,7 +187,7 @@ def seed():
                 else:
                     user = db.get(User, identity.user_id)
             rooms = [
-                Room(building=scope, code=f"DEMO-{index:02}", floor=1+index%2,
+                Room(building=scope, code=room_number(scope,index), floor=1+index%2,
                      kind=kind, capacity=capacity, accessible=index%2==0,
                      equipment={"projector":1,"pc":capacity} if kind=="computer" else {"projector":1})
                 for index, (kind, capacity) in enumerate((
@@ -160,7 +205,7 @@ def seed():
                     continue
                 for index,room in enumerate(rooms,1):
                     rows.extend(rows_for_day(day,dict(building=scope,room=room.code,
-                        groups=[f"ДЕМО-{scope}{index}"],teachers=[f"demo-{scope}-{index}"])))
+                        groups=[group_number(scope,index)],teachers=[f"demo-{scope}-{index}"])))
             batch = ImportBatch(actor_id=user.id, scope=scope, date_from=first, date_to=last,
                                 source_name="synthetic-demo", sha256="0"*64, state="staged",
                                 rows=rows, mapping={}, complete=True,
@@ -217,7 +262,7 @@ def seed():
             Identity.provider=="local", Identity.subject=="student", User.role=="student", User.active,
         ))
         if student and not student.preferences.get("group"):
-            student.preferences={**student.preferences,"group":"ДЕМО-61"}
+            student.preferences={**student.preferences,"group":group_number("6",1)}
         teacher = db.scalar(select(User).join(Identity).where(
             Identity.provider=="local", Identity.subject=="teacher", User.role=="teacher", User.active,
         ))

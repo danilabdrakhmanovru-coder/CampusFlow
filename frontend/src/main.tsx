@@ -15,6 +15,8 @@ import { addDays, Schedule } from './weekly'
 import { AvailableRooms, useLive } from './rooms'
 import { Timeline } from './timeline'
 import { Footer, Header, Help, navigation, Site } from './site-shell'
+import {DemoRoles} from './DemoRoles'
+import {Sheet} from './Sheet'
 import { ConsentGate, CookieNotice, DocumentKind, documentTitles, LegalDocument, LoginForm, operatorLabels, Policy } from './privacy'
 import { Profile, ProfilePage, ResetPassword } from './profile'
 import { adminTabs, go, landing, Link, useLocation } from './routing'
@@ -59,6 +61,7 @@ function App(){
   const [option,setOption]=useState<Option>()
   const [theme,setTheme]=useState(()=>localStorage.getItem('cf-theme')??'system')
   const [density,setDensity]=useState('comfortable')
+  const [picker,showPicker]=useState(false)
   const [demoDestination,setDemoDestination]=useState<string>()
   const [attempt,setAttempt]=useState(0)
   const [online,setOnline]=useState(navigator.onLine)
@@ -147,6 +150,7 @@ function App(){
     setPending(true);setError('')
     try{
       const result=await api<AuthResult>('/auth/demo?role='+role,{method:'POST'})
+      showPicker(false)
       let date=addDays(today(),1)
       if(new Date(date+'T12:00:00Z').getUTCDay()===0)date=addDays(date,1)
       setDemoDestination(role==='teacher'?'/booking?day='+date:landing(role))
@@ -188,9 +192,14 @@ function App(){
     {user?<SignedInHeader user={user} path={location} site={site.data} onRevision={setRevision} pending={pending} logout={()=>void logout()}/>:
       <Header path={location} site={site.data} revision={0} pending={pending} logout={()=>{}}/>}
     <CookieNotice/>
+    {picker&&policy.data?.demo&&<Sheet label="Доступ для демонстрации" onClose={()=>showPicker(false)}>
+      <h2>Доступ для демонстрации</h2><DemoRoles pending={pending} select={role=>void demoSignIn(role)}/>
+      <Status error={error}/><button className="secondary" onClick={()=>showPicker(false)}>Закрыть</button>
+    </Sheet>}
     <main className="shell" id="content" tabIndex={-1} ref={content}>
       {!online&&<p className="feedback error" role="status">Нет соединения. Проверьте интернет и повторите действие.</p>}
-      {policy.data?.demo&&<p className="muted demo-banner">Демо на учебных данных</p>}
+      {policy.data?.demo&&<div className="demo-banner demo-access"><span>Учебный кампус — все имена и расписание вымышлены</span>
+        <button type="button" className="secondary" onClick={()=>showPicker(true)}>{user?'Сменить роль':'Роли, логины и пароли'}</button></div>}
       <Toast text={notice} dismiss={dismissNotice}/>
       {path==='/'?<section className="campus-welcome"><div><h1>Аудитория для вашего занятия</h1><p>Выберите время и число участников. CampusFlow покажет свободные аудитории и сохранит вашу бронь.</p>
         {!user&&policy.data?.demo?<button disabled={pending||loading} onClick={()=>void demoSignIn('teacher')}>Забронировать аудиторию</button>:<Link className="action-link primary-action" href={user?landing(user.role):'/login'}>{user?.role==='student'?'Найти свободную аудиторию':user?.role==='dean'?'Открыть рейтинг групп':user?.role==='admin'?'Перейти к управлению':'Забронировать аудиторию'}</Link>}<Status error={error}/>

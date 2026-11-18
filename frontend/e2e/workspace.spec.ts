@@ -36,7 +36,6 @@ function campusDay(offset:number) {
 async function choose(page:Page) {
   await page.getByRole('navigation',{name:'Разделы',exact:true}).getByRole('link',{name:'Бронирование',exact:true}).click()
   await page.getByRole('radio',{name:'Компьютерный класс'}).check()
-  await page.getByText('Оборудование и доступность',{exact:true}).click()
   await page.getByRole('button',{name:/Компьютеры/}).click()
   await page.locator('input[type=date]').fill(campusDay(2))
   await page.getByRole('button',{name:'Подобрать',exact:true}).click()
@@ -104,7 +103,7 @@ test('Диспетчер видит предпросмотр импорта',asy
   await page.getByLabel('По',{exact:true}).fill(day)
   await page.getByLabel(/Файл CSV/).setInputFiles({
     name:'e2e.csv',mimeType:'text/csv',buffer:Buffer.from(
-      'start,end,building,room,subject\n'+day+'T22:00:00+05:00,'+day+'T22:30:00+05:00,6,DEMO-01,Синтетическая пара\n',
+      'start,end,building,room,subject\n'+day+'T22:00:00+05:00,'+day+'T22:30:00+05:00,6,211,Синтетическая пара\n',
     ),
   })
   await page.getByRole('button',{name:'Предпросмотр'}).click()
@@ -127,10 +126,10 @@ test('Маршруты, справка и права студента',async({pa
   await page.goBack()
   await page.setViewportSize({width:1280,height:900})
   await page.keyboard.press('Control+k')
-  await page.getByRole('searchbox').fill('DEMO-01')
-  await page.getByRole('dialog').getByRole('link',{name:'Аудитория DEMO-01 — корпус 6'}).click()
+  await page.getByRole('searchbox').fill('211')
+  await page.getByRole('dialog').getByRole('link',{name:'Аудитория 211 — корпус 6'}).click()
   await expect(page).toHaveURL(/rooms\?view=plan/)
-  await expect(page.getByRole('dialog',{name:/Аудитория DEMO-01/})).toBeVisible()
+  await expect(page.getByRole('dialog',{name:/Аудитория 211/})).toBeVisible()
   await page.keyboard.press('Escape')
   await page.goBack()
   await expect(page).toHaveURL(/schedule$/)
@@ -229,7 +228,7 @@ test('Публичный документ, оглавление, PDF и увед
 test('Студент сохраняет группу, смотрит неделю и ищет аудиторию в окно',async({page})=>{
   await signIn(page,'student')
   await page.goto('/profile')
-  await page.getByLabel('Моя группа').selectOption('ДЕМО-61')
+  await page.getByLabel('Моя группа').selectOption('АСУ-31')
   await page.getByRole('button',{name:'Сохранить',exact:true}).click()
   await expect(page.getByText('Настройки сохранены.')).toBeVisible()
   await page.goto('/schedule')
@@ -314,7 +313,7 @@ test('Основные экраны вмещаются на 360 px и на де�
   const errors:string[]=[]
   page.on('pageerror',error=>errors.push(error.message))
   await signIn(page,'admin')
-  const paths=['/schedule?scope=group&entity_id='+encodeURIComponent('ДЕМО-61'),'/rooms','/rooms?view=plan','/booking',
+  const paths=['/schedule?scope=group&entity_id='+encodeURIComponent('АСУ-31'),'/rooms','/rooms?view=plan','/booking',
     '/windows','/profile','/profile?tab=security','/profile?tab=privacy','/admin','/admin/imports','/admin/rooms','/admin/groups',
     '/admin/users','/admin/moves','/admin/walk','/admin/audit','/admin/settings','/admin/model','/admin/analytics',
     '/help','/legal/privacy','/legal/consent','/legal/cookies']
@@ -337,8 +336,7 @@ test('Подбор без группы показывает другие ауд�
   await expect(page.getByRole('combobox',{name:'Группа',exact:true})).toBeHidden()
   await page.getByRole('combobox',{name:'Корпус',exact:true}).selectOption('6')
   await page.getByRole('radio',{name:'Лекционная'}).check()
-  await expect(page.getByRole('button',{name:/Компьютеры/})).toBeHidden()
-  await page.getByText('Оборудование и доступность',{exact:true}).click()
+  await expect(page.getByRole('button',{name:/Компьютеры/})).toBeVisible()
   await page.getByRole('button',{name:/Компьютеры/}).click()
   await page.locator('input[type=date]').fill(campusDay(2))
   const searched=page.waitForResponse(response=>response.url().includes('/slots/recommendations?')&&
@@ -380,7 +378,7 @@ test('Демо-вход ведёт преподавателя сразу к по
 test('Разбор окон выводится на странице группы',async({page})=>{
   await signIn(page,'admin')
   const day=campusDay(2)
-  await page.goto('/windows?group='+encodeURIComponent('ДЕМО-61')+'&day='+day)
+  await page.goto('/windows?group='+encodeURIComponent('АСУ-31')+'&day='+day)
   await page.route('**/api/v1/analytics/groups/*/analysis',route=>{
     expect(route.request().postDataJSON()).toEqual(expect.objectContaining({minimum:40}))
     return route.fulfill({json:{summary:'Самые длинные окна в середине недели.',
@@ -411,16 +409,16 @@ test('Разбор корпуса сохраняет выбранную груп
   await expect(group).toHaveValue('')
   await section.getByRole('button',{name:'Разобрать окна и найти переносы'}).click()
   await expect(page).toHaveURL(/\/schedule\?scope=building/)
-  await group.selectOption('ДЕМО-63')
+  await group.selectOption('РЭ-31')
   await section.getByRole('button',{name:'Разобрать окна и найти переносы'}).click()
-  await expect(page.getByRole('heading',{name:'Группа ДЕМО-63',exact:true})).toBeVisible()
-  const analysisPath='/analytics/groups/'+encodeURIComponent('ДЕМО-63')+'/analysis'
+  await expect(page.getByRole('heading',{name:'Группа РЭ-31',exact:true})).toBeVisible()
+  const analysisPath='/analytics/groups/'+encodeURIComponent('РЭ-31')+'/analysis'
   await page.route('**/api/v1'+analysisPath,route=>route.fulfill({json:{summary:'Разбор выбранной группы.',observations:[],next_steps:[]}}))
   const request=page.waitForRequest(value=>new URL(value.url()).pathname.endsWith(analysisPath))
   await page.getByRole('button',{name:'Разобрать окна с ИИ'}).click()
   await request
   const analysis=page.getByRole('region',{name:'ИИ-анализ окон'})
-  await expect(analysis.getByText(/Группа ДЕМО-63/)).toBeVisible()
+  await expect(analysis.getByText(/Группа РЭ-31/)).toBeVisible()
   await expect(analysis.getByText('Разбор выбранной группы.')).toBeVisible()
 })
 
@@ -439,6 +437,7 @@ test('Два участника передают освободившийся и
   async function search(screen:Page){
     await screen.goto('/booking')
     await screen.getByRole('combobox',{name:'Корпус',exact:true}).selectOption('6')
+    await screen.getByRole('radio',{name:'Семинарская'}).check()
     await screen.getByLabel('Человек',{exact:true}).fill('18')
     await screen.getByLabel('Дата',{exact:true}).fill(campusDay(3))
     await screen.getByLabel('Своё время',{exact:true}).fill('19:00')
@@ -481,4 +480,32 @@ test('Центр уведомлений на телефоне открывает
   await expect(page).toHaveURL(/booking\?view=watch/)
   expect((await (await page.request.get('/manifest.webmanifest')).json()).display).toBe('standalone')
   expect((await page.request.get('/sw.js')).headers()['content-type']).toContain('javascript')
+})
+
+test('Руководитель переключается между четырьмя ролями с главной',async({page})=>{
+  await page.goto('/')
+  await page.getByRole('button',{name:'Роли, логины и пароли'}).click()
+  for(const [index, [role,action,path]] of [
+    ['student','Найти свободную аудиторию','rooms'],
+    ['teacher','Забронировать аудиторию','booking'],
+    ['dean','Оценить расписание групп','windows'],
+    ['admin','Управлять кампусом','admin']
+  ].entries()){
+    if(index>0)await page.getByRole('button',{name:'Сменить роль'}).click()
+    const dialog=page.getByRole('dialog',{name:'Доступ для демонстрации'})
+    const card=dialog.getByRole('article').filter({has:page.getByText(role,{exact:true})})
+    await expect(card.getByText(password[role as keyof typeof password],{exact:true})).toBeVisible()
+    expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true)
+    await card.getByRole('button',{name:action}).click()
+    const gate=page.getByRole('dialog',{name:'Документы и согласие'})
+    await expect(gate.or(page.getByRole('button',{name:'Сменить роль'}))).toBeVisible()
+    if(await gate.isVisible())await acceptDocuments(page)
+    await expect(page).toHaveURL(new RegExp('/'+path+'(?:[?].*)?$'))
+    if(role==='teacher'){
+      await expect(page.getByRole('radio',{name:'Любой тип'})).toBeChecked()
+      await page.getByRole('button',{name:'Проектор',exact:true}).click()
+      await expect(page.getByRole('button',{name:'Проектор',exact:true})).toHaveAttribute('aria-pressed','true')
+      await expect(page.getByText(/По характеристикам подходит:/)).toBeVisible()
+    }
+  }
 })
