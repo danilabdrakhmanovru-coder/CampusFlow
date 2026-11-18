@@ -768,3 +768,60 @@ def test_apply_rejects_more_teacher_breaks(pilot):
     assert plan.status_code == 200 and plan.json()['assignments'], plan.text
     response = client.post(f"/api/v1/admin/proposals/{plan.json()['id']}/apply",headers={**admin,'Idempotency-Key':uuid4().hex},json={'lesson_ids':[lesson_id]})
     assert response.status_code == 409 and 'перерывы преподавателя' in response.text
+
+def test_device_push_delivery_and_unsubscribe(pilot, monkeypatch):
+    import base64
+    import json
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    import pywebpush
+    from app.v1.activity_models import Outbox
+    from app.v1.web_push import deliver
+
+    client, tokens, _, _ = pilot
+    teacher = tokens["teacher"]
+    key = ec.generate_private_key(ec.SECP256R1())
+    def encode(value):
+        return base64.urlsafe_b64encode(value).decode().rstrip("=")
+    monkeypatch.setenv("CAMPUSFLOW_PUSH_KEY", encode(key.private_bytes(
+        serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())))
+    monkeypatch.setenv("CAMPUSFLOW_PUSH_CONTACT", "mailto:test@example.org")
+    path = "/api/v1/push"
+    config = client.get(path, headers=teacher).json()
+    assert config["key"] and not config["enabled"]
+    assert client.get(path, headers=tokens["student"]).status_code == 403
+    body = {"endpoint":"https://web.push.apple.com/test", "keys":{"p256dh":config["key"],"auth":encode(bytes(16))}}
+    assert client.put(path, headers=teacher, json={**body, "endpoint":"https://example.org/test"}).status_code == 422
+    assert client.put(path, headers=teacher, json=body).status_code == 200
+    user_id = client.get("/api/v1/auth/me", headers=teacher).json()["id"]
+    sent = []
+    real_webpush = pywebpush.webpush
+    monkeypatch.setattr(pywebpush, "webpush", lambda **args: sent.append(json.loads(args["data"])))
+    with app.state.sessions() as db:
+        db.add(Outbox(user_id=user_id, kind="watch_hold", payload={"room":"private-room"}))
+        db.commit()
+        deliver(db)
+        deliver(db)
+    assert len(sent) == 1 and sent[0]["kind"] == "watch_hold" and set(sent[0]) == {"kind","id","until"}
+    # Keep the provider offline while exercising signing and payload encryption.
+    monkeypatch.setattr(pywebpush, "webpush", real_webpush)
+    from requests import Response
+    from app.v1.web_push import ProviderSession
+    requests_sent = []
+    def send(session, request, **kwargs):
+        requests_sent.append(request)
+        response = Response()
+        response.status_code = 201
+        response._content = b""
+        return response
+    monkeypatch.setattr(ProviderSession, "send", send)
+    with app.state.sessions() as db:
+        db.add(Outbox(user_id=user_id, kind="booking_reminder", payload={}))
+        db.commit()
+        deliver(db)
+    assert len(requests_sent) == 1
+    assert requests_sent[0].headers["Content-Encoding"] == "aes128gcm"
+    assert requests_sent[0].headers["Authorization"].startswith("vapid ")
+    assert b"booking_reminder" not in requests_sent[0].body
+    assert client.delete(path, headers=teacher).status_code == 204
+    assert not client.get(path, headers=teacher).json()["enabled"]

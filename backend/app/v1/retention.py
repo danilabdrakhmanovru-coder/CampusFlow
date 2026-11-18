@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, select, update
 
 from .models import Audit, Booking, Consent, Hold, Idempotency, Identity, Occupancy, PasswordReset, RefreshSession
 from .schedule_models import TeacherLink
+from .web_push import Subscription
 from .activity_models import Outbox, Watch
 from .login_throttle import buckets
 from .site_config import site_preferences
@@ -67,7 +68,7 @@ def erase_account(db, user):
     remove_reservations(db, holds, bookings)
     user.preferences = {}
     user.teacher_link_requested_at = user.deletion_requested_at = None
-    for model in (Identity, Consent, PasswordReset, RefreshSession, Idempotency, TeacherLink, Watch, Outbox):
+    for model in (Identity, Consent, PasswordReset, RefreshSession, Idempotency, TeacherLink, Watch, Outbox, Subscription):
         db.execute(delete(model).where(model.user_id == user.id))
     db.execute(delete(Audit).where(
         (Audit.actor_id == user.id) | (Audit.action.like("user.%") & (Audit.object_id == user.id)),

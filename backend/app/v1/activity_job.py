@@ -82,7 +82,7 @@ def process_room_activity(db):
             db.flush()
             db.add(Occupancy(room_id=room.id, period=period, kind="hold", hold_id=hold.id))
             candidate.hold_id, candidate.state = hold.id, "offered"
-            db.add(Outbox(user_id=user.id, kind="watch_hold", payload={"watch_id": key, "hold_id": hold.id}))
+            db.add(Outbox(user_id=user.id, kind="watch_hold", payload={"watch_id": key, "hold_id": hold.id, "room":room.code, "building":room.building}))
             db.commit()
         except IntegrityError as exc:
             db.rollback()

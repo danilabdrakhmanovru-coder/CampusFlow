@@ -464,3 +464,21 @@ test('Два участника передают освободившийся и
     await other.getByRole('button',{name:'Отпустить',exact:true}).click()
   }finally{await context.close()}
 })
+
+test('Центр уведомлений на телефоне открывает лист ожидания',async({page})=>{
+  const now=new Date().toISOString()
+  await page.route('**/api/v1/notifications',route=>route.fulfill({json:[
+    {id:73,kind:'watch_hold',created_at:now,payload:{room:'214',building:'6'}}
+  ]}))
+  await signIn(page,'teacher')
+  await page.getByRole('button',{name:/Уведомления/}).click()
+  const sheet=page.getByRole('dialog',{name:'Уведомления'})
+  await expect(sheet.getByRole('heading',{name:'Аудитория освободилась'})).toBeVisible()
+  await expect(sheet.getByText('Аудитория 214, корпус 6')).toBeVisible()
+  await expect(sheet.getByText(/Подтвердите бронь до/)).toBeVisible()
+  expect(await sheet.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true)
+  await sheet.getByRole('link',{name:'Открыть лист ожидания'}).click()
+  await expect(page).toHaveURL(/booking\?view=watch/)
+  expect((await (await page.request.get('/manifest.webmanifest')).json()).display).toBe('standalone')
+  expect((await page.request.get('/sw.js')).headers()['content-type']).toContain('javascript')
+})

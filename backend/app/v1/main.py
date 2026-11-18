@@ -44,6 +44,8 @@ async def lifespan(app):
 
 
 app = FastAPI(title="CampusFlow", version="1.0", lifespan=lifespan)
+from .web_push import router as push_router
+app.include_router(push_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(profile_router, prefix="/api/v1")
 app.include_router(group_router, prefix="/api/v1")

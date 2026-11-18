@@ -1,6 +1,7 @@
 import logging
 import time
 
+from .web_push import deliver
 from .db import session_factory
 from .retention import cleanup
 from .ranking import train
@@ -17,6 +18,8 @@ def main():
             with factory() as db:
                 process_room_activity(db)
                 train(db, automatic=True)
+            with factory() as db:
+                deliver(db)
             if time.monotonic() >= next_cleanup:
                 with factory.begin() as db:
                     counts = cleanup(db)

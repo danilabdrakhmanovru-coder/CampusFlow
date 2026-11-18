@@ -1,3 +1,4 @@
+import { DeviceAlerts, Notice, NoticeList } from './notifications'
 import { useEffect, useState } from 'react'
 import { api, Room, Session } from './api'
 import { BrandMark } from './BrandMark'
@@ -8,7 +9,6 @@ import { Sheet } from './Sheet'
 
 export type Site = { name:string;description:string;campus:string;support_email:string|null;support_hours:string|null;timezone:string;bell:[number,number][];
   schedule_source:string;schedule_updated_at:string|null;schedule_scopes:string[] }
-type Notice = { id:number; kind:string; payload:{booking_id?:number;reason?:string}; created_at:string }
 type TeacherChoice = {building:string;number:number;label:string}
 export const navigation: {path:string;label:string;short:string;icon:IconName;roles:Session['role'][]}[] = [
   {path:'/rooms',label:'Аудитории',short:'Аудитории',icon:'plan',roles:['student','admin']},
@@ -65,15 +65,9 @@ export function Header({user,path,site,revision,pending,logout}:{
     </div>
     {panel==='search'&&user&&<QuickSearch user={user} close={close}/>}
     {panel==='notices'&&<Sheet label="Уведомления" onClose={close}><h2>Уведомления</h2>
-      <Status pending={!notices.data&&!notices.error} error={notices.error} empty={notices.data?.length===0?'Уведомлений пока нет.':undefined}/>
-      <ul className="records">{notices.data?.map(n=><li key={n.id}>
-        <span>{n.kind==='watch_hold'?'Для вас освободилась аудитория. Она зарезервирована на пять минут.':
-          n.kind==='booking_reminder'?'Скоро начнётся бронь №'+n.payload.booking_id+'.':
-          n.kind==='cancelled_by_admin'?'Диспетчер отменил бронь №'+n.payload.booking_id+'. '+(n.payload.reason??''):
-          n.kind==='slot_freed'?'Бронь №'+n.payload.booking_id+' отменена или освобождена. '+(n.payload.reason??''):'Обновление занятости.'}</span>
-        <time dateTime={n.created_at}>{new Date(n.created_at).toLocaleString('ru-RU',{timeZone:campus})}</time>
-      </li>)}</ul>
-      {user?.role!=='student'&&<Link href="/booking" onNavigate={close}>К бронированию</Link>}{' '}
+      <Status pending={!notices.data&&!notices.error} error={notices.error} empty={notices.data?.length===0?'Здесь появятся напоминания о бронях и предложения из листа ожидания.':undefined}/>
+      <NoticeList items={notices.data??[]} close={close}/>
+      <DeviceAlerts/>
       <button className="secondary" onClick={close}>Закрыть</button>
     </Sheet>}
   </header>
